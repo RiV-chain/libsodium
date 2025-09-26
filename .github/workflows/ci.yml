@@ -178,3 +178,18 @@ jobs:
       - name: Android compilation
         run: |
           env ANDROID_NDK_HOME=/tmp/android/ndk ./dist-build/android-aar.sh
+          # Use the latest .aar in the directory
+          AAR_FILE=$(ls -t *.aar | head -n 1)
+          echo "AAR_PATH=$(pwd)/$AAR_FILE" >> $GITHUB_ENV
+          VERSION=$(basename "$AAR_FILE" .aar | cut -d'-' -f2)
+          echo "SODIUM_VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Copy local file and publish to RiV-chain/artifact repo
+        uses: RiV-chain/copy-local-file-maven-action@main
+        with:
+          artifact_repo: RiV-chain/artifact
+          gh_pat: ${{ secrets.MAVEN_PAT }}
+          artifact_path: ${{ env.AAR_PATH }}
+          artifact_id: libsodium
+          group_id: org.libsodium
+          version: ${{ env.SODIUM_VERSION }}
