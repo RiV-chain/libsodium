@@ -37,6 +37,9 @@ for abi in "armeabi-v7a" "arm64-v8a" "x86" "x86_64"; do
 done
 
 # --- Run cross-compilation scripts to produce full libsodium.so ---
+LIBSODIUM_FULL_BUILD="Y"
+export LIBSODIUM_FULL_BUILD
+
 echo "Building full libsodium binaries..."
 dist-build/android-armv7-a.sh
 dist-build/android-armv8-a.sh
