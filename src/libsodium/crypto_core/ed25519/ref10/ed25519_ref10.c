@@ -39,7 +39,7 @@ load_4(const unsigned char *in)
  * and 10*25.5 bit limbs elsewhere.
  *
  * Functions used elsewhere that are candidates for inlining are defined
- * via "private/curve25519_ref10.h".
+ * via "private/ed25519_ref10.h".
  */
 
 #ifdef HAVE_TI_MODE
@@ -62,7 +62,7 @@ fe25519_sqmul(fe25519 s, const int n, const fe25519 a)
 }
 
 /*
- * Inversion - returns 0 if z=0
+ * Inversion - sets out to 0 if z=0
  */
 void
 fe25519_invert(fe25519 out, const fe25519 z)
@@ -1141,10 +1141,13 @@ int
 ge25519_is_on_main_subgroup(const ge25519_p3 *p)
 {
     ge25519_p3 pl;
+    fe25519    t;
 
     ge25519_mul_l(&pl, p);
 
-    return fe25519_iszero(pl.X);
+    fe25519_sub(t, pl.Y, pl.Z);
+
+    return fe25519_iszero(pl.X) & fe25519_iszero(t);
 }
 
 int
@@ -1167,24 +1170,17 @@ ge25519_is_canonical(const unsigned char *s)
 int
 ge25519_has_small_order(const ge25519_p3 *p)
 {
-    fe25519 recip;
-    fe25519 x;
-    fe25519 x_neg;
-    fe25519 y;
     fe25519 y_sqrtm1;
     fe25519 c;
     int     ret = 0;
 
-    fe25519_invert(recip, p->Z);
-    fe25519_mul(x, p->X, recip);
-    ret |= fe25519_iszero(x);
-    fe25519_mul(y, p->Y, recip);
-    ret |= fe25519_iszero(y);
-    fe25519_neg(x_neg, p->X);
-    fe25519_mul(y_sqrtm1, y, fe25519_sqrtm1);
-    fe25519_sub(c, y_sqrtm1, x);
+    ret |= fe25519_iszero(p->X);
+    ret |= fe25519_iszero(p->Y);
+    ret |= fe25519_iszero(p->Z);
+    fe25519_mul(y_sqrtm1, p->Y, fe25519_sqrtm1);
+    fe25519_sub(c, y_sqrtm1, p->X);
     ret |= fe25519_iszero(c);
-    fe25519_sub(c, y_sqrtm1, x_neg);
+    fe25519_add(c, y_sqrtm1, p->X);
     ret |= fe25519_iszero(c);
 
     return ret;

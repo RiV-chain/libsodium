@@ -29,6 +29,9 @@ libsodium_la_SOURCES = \
 	crypto_core/hchacha20/core_hchacha20.c \
 	crypto_core/hsalsa20/ref2/core_hsalsa20_ref2.c \
 	crypto_core/hsalsa20/core_hsalsa20.c \
+	crypto_core/keccak1600/keccak1600.c \
+	crypto_core/keccak1600/ref/keccak1600_ref.c \
+	crypto_core/keccak1600/ref/keccak1600_ref.h \
 	crypto_core/salsa/ref/core_salsa_ref.c \
 	crypto_core/softaes/softaes.c \
 	crypto_generichash/crypto_generichash.c \
@@ -45,10 +48,17 @@ libsodium_la_SOURCES = \
 	crypto_hash/sha256/cp/hash_sha256_cp.c \
 	crypto_hash/sha512/hash_sha512.c \
 	crypto_hash/sha512/cp/hash_sha512_cp.c \
+	crypto_ipcrypt/crypto_ipcrypt.c \
+	crypto_ipcrypt/ipcrypt_soft.c \
+	crypto_ipcrypt/ipcrypt_soft.h \
+	crypto_ipcrypt/implementations.h \
 	crypto_kdf/blake2b/kdf_blake2b.c \
 	crypto_kdf/crypto_kdf.c \
 	crypto_kdf/hkdf/kdf_hkdf_sha256.c \
 	crypto_kdf/hkdf/kdf_hkdf_sha512.c \
+	crypto_kem/mlkem768/kem_mlkem768.c \
+	crypto_kem/mlkem768/ref/kem_mlkem768_ref.c \
+	crypto_kem/mlkem768/ref/kem_mlkem768_ref.h \
 	crypto_kx/crypto_kx.c \
 	crypto_onetimeauth/crypto_onetimeauth.c \
 	crypto_onetimeauth/poly1305/onetimeauth_poly1305.c \
@@ -98,6 +108,18 @@ libsodium_la_SOURCES = \
 	crypto_stream/salsa20/stream_salsa20.h \
 	crypto_stream/xsalsa20/stream_xsalsa20.c \
 	crypto_verify/verify.c \
+	crypto_xof/shake128/xof_shake128.c \
+	crypto_xof/shake128/ref/shake128_ref.c \
+	crypto_xof/shake128/ref/shake128_ref.h \
+	crypto_xof/shake256/xof_shake256.c \
+	crypto_xof/shake256/ref/shake256_ref.c \
+	crypto_xof/shake256/ref/shake256_ref.h \
+	crypto_xof/turboshake128/xof_turboshake128.c \
+	crypto_xof/turboshake128/ref/turboshake128_ref.c \
+	crypto_xof/turboshake128/ref/turboshake128_ref.h \
+	crypto_xof/turboshake256/xof_turboshake256.c \
+	crypto_xof/turboshake256/ref/turboshake256_ref.c \
+	crypto_xof/turboshake256/ref/turboshake256_ref.h \
 	include/sodium/private/asm_cet.h \
 	include/sodium/private/chacha20_ietf_ext.h \
 	include/sodium/private/common.h \
@@ -236,7 +258,9 @@ libarmcrypto_la_SOURCES = \
 	crypto_aead/aegis128l/aegis128l_armcrypto.h \
 	crypto_aead/aegis256/aegis256_armcrypto.c \
 	crypto_aead/aegis256/aegis256_armcrypto.h \
-	crypto_aead/aes256gcm/armcrypto/aead_aes256gcm_armcrypto.c
+	crypto_aead/aes256gcm/armcrypto/aead_aes256gcm_armcrypto.c \
+	crypto_ipcrypt/ipcrypt_armcrypto.c \
+	crypto_ipcrypt/ipcrypt_armcrypto.h
 
 libaesni_la_LDFLAGS = $(libsodium_la_LDFLAGS)
 libaesni_la_CPPFLAGS = $(libsodium_la_CPPFLAGS) \
@@ -246,7 +270,9 @@ libaesni_la_SOURCES = \
 	crypto_aead/aegis128l/aegis128l_aesni.h \
 	crypto_aead/aegis256/aegis256_aesni.c \
 	crypto_aead/aegis256/aegis256_aesni.h \
-	crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c
+	crypto_aead/aes256gcm/aesni/aead_aes256gcm_aesni.c \
+	crypto_ipcrypt/ipcrypt_aesni.c \
+	crypto_ipcrypt/ipcrypt_aesni.h
 
 libsse2_la_LDFLAGS = $(libsodium_la_LDFLAGS)
 libsse2_la_CPPFLAGS = $(libsodium_la_CPPFLAGS) \

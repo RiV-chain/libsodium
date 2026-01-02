@@ -1,14 +1,16 @@
 const std = @import("std");
 const fmt = std.fmt;
-const fs = std.fs;
+const Io = std.Io;
+const Dir = Io.Dir;
 const heap = std.heap;
 const mem = std.mem;
 const Compile = std.Build.Step.Compile;
 const Target = std.Target;
 
 fn initLibConfig(b: *std.Build, target: std.Build.ResolvedTarget, lib: *Compile) void {
-    lib.linkLibC();
-    lib.addIncludePath(b.path("src/libsodium/include/sodium"));
+    lib.root_module.link_libc = true;
+    lib.lto = null;
+    lib.root_module.addIncludePath(b.path("src/libsodium/include/sodium"));
     lib.root_module.addCMacro("_GNU_SOURCE", "1");
     lib.root_module.addCMacro("CONFIGURED", "1");
     lib.root_module.addCMacro("DEV_MODE", "1");
@@ -20,7 +22,6 @@ fn initLibConfig(b: *std.Build, target: std.Build.ResolvedTarget, lib: *Compile)
     lib.root_module.addCMacro("HAVE_INTTYPES_H", "1");
     lib.root_module.addCMacro("HAVE_STDINT_H", "1");
     lib.root_module.addCMacro("HAVE_TI_MODE", "1");
-    lib.want_lto = false;
 
     const endian = target.result.cpu.arch.endian();
     switch (endian) {
@@ -140,12 +141,15 @@ fn initLibConfig(b: *std.Build, target: std.Build.ResolvedTarget, lib: *Compile)
 }
 
 pub fn build(b: *std.Build) !void {
+    var threaded: Io.Threaded = .init_single_threaded;
+    const io = threaded.io();
+
     const root_path = b.pathFromRoot(".");
-    var cwd = try fs.openDirAbsolute(root_path, .{});
-    defer cwd.close();
+    var cwd = try Dir.openDirAbsolute(io, root_path, .{});
+    defer cwd.close(io);
 
     const src_path = "src/libsodium";
-    const src_dir = try fs.Dir.openDir(cwd, src_path, .{ .iterate = true, .no_follow = true });
+    const src_dir = try cwd.openDir(io, src_path, .{ .iterate = true });
 
     var target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -206,9 +210,9 @@ pub fn build(b: *std.Build) !void {
     const prebuilt_version_file_path = "builds/msvc/version.h";
     const version_file_path = "include/sodium/version.h";
 
-    if (src_dir.access(version_file_path, .{ .mode = .read_only })) {} else |_| {
-        try cwd.copyFile(prebuilt_version_file_path, src_dir, version_file_path, .{});
-    }
+    src_dir.access(io, version_file_path, .{ .read = true }) catch {
+        try Dir.copyFile(cwd, prebuilt_version_file_path, src_dir, version_file_path, io, .{});
+    };
 
     for (libs.items) |lib| {
         b.installArtifact(lib);
@@ -229,35 +233,35 @@ pub fn build(b: *std.Build) !void {
         const allocator = heap.page_allocator;
 
         var walker = try src_dir.walk(allocator);
-        while (try walker.next()) |entry| {
+        while (try walker.next(io)) |entry| {
             const name = entry.basename;
             if (mem.endsWith(u8, name, ".c")) {
                 const full_path = try fmt.allocPrint(allocator, "{s}/{s}", .{ src_path, entry.path });
 
-                lib.addCSourceFiles(.{
+                lib.root_module.addCSourceFiles(.{
                     .files = &.{full_path},
                     .flags = flags,
                 });
             } else if (mem.endsWith(u8, name, ".S")) {
                 const full_path = try fmt.allocPrint(allocator, "{s}/{s}", .{ src_path, entry.path });
-                lib.addAssemblyFile(b.path(full_path));
+                lib.root_module.addAssemblyFile(b.path(full_path));
             }
         }
     }
 
     const test_path = "test/default";
     const out_bin_path = "zig-out/bin";
-    const test_dir = try fs.Dir.openDir(cwd, test_path, .{ .iterate = true, .no_follow = true });
-    fs.Dir.makePath(cwd, out_bin_path) catch {};
-    const out_bin_dir = try fs.Dir.openDir(cwd, out_bin_path, .{});
-    try test_dir.copyFile("run.sh", out_bin_dir, "run.sh", .{});
+    const test_dir = try cwd.openDir(io, test_path, .{ .iterate = true });
+    cwd.createDirPath(io, out_bin_path) catch {};
+    const out_bin_dir = try cwd.openDir(io, out_bin_path, .{});
+    try Dir.copyFile(test_dir, "run.sh", out_bin_dir, "run.sh", io, .{});
     const allocator = heap.page_allocator;
     var walker = try test_dir.walk(allocator);
     if (build_tests) {
-        while (try walker.next()) |entry| {
+        while (try walker.next(io)) |entry| {
             const name = entry.basename;
             if (mem.endsWith(u8, name, ".exp")) {
-                try test_dir.copyFile(name, out_bin_dir, name, .{});
+                try Dir.copyFile(test_dir, name, out_bin_dir, name, io, .{});
                 continue;
             }
             if (!mem.endsWith(u8, name, ".c")) {
@@ -270,14 +274,14 @@ pub fn build(b: *std.Build) !void {
                     .target = target,
                     .optimize = optimize,
                     .strip = true,
+                    .link_libc = true,
                 }),
             });
-            exe.linkLibC();
-            exe.linkLibrary(static_lib);
-            exe.addIncludePath(b.path("src/libsodium/include"));
-            exe.addIncludePath(b.path("test/quirks"));
+            exe.root_module.linkLibrary(static_lib);
+            exe.root_module.addIncludePath(b.path("src/libsodium/include"));
+            exe.root_module.addIncludePath(b.path("test/quirks"));
             const full_path = try fmt.allocPrint(allocator, "{s}/{s}", .{ test_path, entry.path });
-            exe.addCSourceFiles(.{ .files = &.{full_path} });
+            exe.root_module.addCSourceFiles(.{ .files = &.{full_path} });
             if (enable_benchmarks) {
                 exe.root_module.addCMacro("BENCHMARKS", "1");
                 var buf: [16]u8 = undefined;
