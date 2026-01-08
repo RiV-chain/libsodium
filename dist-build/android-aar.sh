@@ -3,7 +3,7 @@
 # Build a plain AAR containing only full libsodium.so variants for multiple ABIs.
 # The resulting AAR is created in the current working directory.
 
-SODIUM_VERSION="1.0.21.0.1"
+SODIUM_VERSION="1.0.23.0.1"
 DEST_PATH=$(mktemp -d)
 AAR_PATH="$(pwd)/libsodium-${SODIUM_VERSION}.aar"
 

@@ -474,21 +474,18 @@ parse_ipv6(const char *src, const char *end, unsigned char out[16])
 }
 
 int
-sodium_ip2bin(unsigned char out[16], const char *src)
+sodium_ip2bin(unsigned char bin[16], const char *ip, size_t ip_len)
 {
+    const char   *ip_end = ip + ip_len;
     const char   *end;
     const char   *z;
     unsigned char v4[4];
 
-    if (src == NULL || out == NULL) {
-        return -1;
-    }
-
-    for (end = src; *end != 0 && *end != '%'; end++) {
+    for (end = ip; end < ip_end && *end != 0 && *end != '%'; end++) {
         /* empty */
     }
-    if (*end == '%') {
-        for (z = end + 1; *z != 0; z++) {
+    if (end < ip_end && *end == '%') {
+        for (z = end + 1; z < ip_end && *z != 0; z++) {
             if (isspace((unsigned char) *z)) {
                 return -1;
             }
@@ -497,19 +494,19 @@ sodium_ip2bin(unsigned char out[16], const char *src)
             return -1;
         }
     }
-    if (memchr(src, ':', (size_t) (end - src)) != NULL) {
-        return parse_ipv6(src, end, out) != 0 ? 0 : -1;
+    if (memchr(ip, ':', (size_t) (end - ip)) != NULL) {
+        return parse_ipv6(ip, end, bin) != 0 ? 0 : -1;
     }
-    if (*end == '%') {
+    if (end < ip_end && *end == '%') {
         return -1;
     }
-    if (parse_ipv4(src, end, v4) == 0) {
+    if (parse_ipv4(ip, end, v4) == 0) {
         return -1;
     }
-    memset(out, 0, 10U);
-    out[10] = 0xffU;
-    out[11] = 0xffU;
-    memcpy(out + 12, v4, 4U);
+    memset(bin, 0, 10U);
+    bin[10] = 0xffU;
+    bin[11] = 0xffU;
+    memcpy(bin + 12, v4, 4U);
 
     return 0;
 }
@@ -536,7 +533,7 @@ ip_write_num(char **p, unsigned int val, int base)
 }
 
 char *
-sodium_bin2ip(char *dst, size_t dst_len, const unsigned char in[16])
+sodium_bin2ip(char *ip, size_t ip_maxlen, const unsigned char bin[16])
 {
     char   buf[46];
     char  *p = buf;
@@ -547,27 +544,27 @@ sodium_bin2ip(char *dst, size_t dst_len, const unsigned char in[16])
     int    cur_len    = 0;
     size_t len;
 
-    if (dst == NULL || in == NULL || dst_len == 0U) {
+    if (ip_maxlen <= 2U) {
         return NULL;
     }
-    if (memcmp(in, ipv4_mapped_prefix, 12U) == 0) {
+    if (memcmp(bin, ipv4_mapped_prefix, 12U) == 0) {
         for (i = 0; i < 4; i++) {
             if (i != 0) {
                 *p++ = '.';
             }
-            ip_write_num(&p, (unsigned int) in[12 + i], 10);
+            ip_write_num(&p, (unsigned int) bin[12 + i], 10);
         }
         len = (size_t) (p - buf);
-        if (len >= dst_len) {
+        if (len >= ip_maxlen) {
             return NULL;
         }
-        memcpy(dst, buf, len + 1U);
-        dst[len] = 0;
+        memcpy(ip, buf, len + 1U);
+        ip[len] = 0;
 
-        return dst;
+        return ip;
     }
     for (i = 0; i < 8; i++) {
-        unsigned int word = ((unsigned int) in[i * 2] << 8) | (unsigned int) in[i * 2 + 1];
+        unsigned int word = ((unsigned int) bin[i * 2] << 8) | (unsigned int) bin[i * 2 + 1];
 
         if (word == 0U) {
             if (cur_start < 0) {
@@ -600,14 +597,14 @@ sodium_bin2ip(char *dst, size_t dst_len, const unsigned char in[16])
         if (i != 0 && (best_start < 0 || i != best_start + best_len)) {
             *p++ = ':';
         }
-        ip_write_num(&p, ((unsigned int) in[i * 2] << 8) | (unsigned int) in[i * 2 + 1], 16);
+        ip_write_num(&p, ((unsigned int) bin[i * 2] << 8) | (unsigned int) bin[i * 2 + 1], 16);
     }
     len = (size_t) (p - buf);
-    if (len >= dst_len) {
+    if (len >= ip_maxlen) {
         return NULL;
     }
-    memcpy(dst, buf, len);
-    dst[len] = 0;
+    memcpy(ip, buf, len);
+    ip[len] = 0;
 
-    return dst;
+    return ip;
 }

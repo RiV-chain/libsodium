@@ -13,57 +13,57 @@ static void
 shake256_manual_with_domain(unsigned char *out, size_t outlen, const unsigned char *in,
                             size_t inlen, unsigned char domain)
 {
-    unsigned char state[crypto_core_keccak1600_STATEBYTES];
-    size_t        rate     = crypto_xof_shake256_blockbytes();
-    size_t        offset   = 0;
-    size_t        consumed = 0;
-    size_t        chunk_size;
-    size_t        extracted = 0;
-    unsigned char pad;
+    crypto_core_keccak1600_state state;
+    size_t                       rate      = crypto_xof_shake256_blockbytes();
+    size_t                       offset    = 0;
+    size_t                       consumed  = 0;
+    size_t                       chunk_size;
+    size_t                       extracted = 0;
+    unsigned char                pad;
 
-    crypto_core_keccak1600_init(state);
+    crypto_core_keccak1600_init(&state);
 
     while (consumed < inlen) {
         if (offset == rate) {
-            crypto_core_keccak1600_permute_24(state);
+            crypto_core_keccak1600_permute_24(&state);
             offset = 0;
         }
         chunk_size = rate - offset;
         if (chunk_size > inlen - consumed) {
             chunk_size = inlen - consumed;
         }
-        crypto_core_keccak1600_xor_bytes(state, &in[consumed], offset, chunk_size);
+        crypto_core_keccak1600_xor_bytes(&state, &in[consumed], offset, chunk_size);
         offset += chunk_size;
         consumed += chunk_size;
     }
 
     if (offset == rate) {
-        crypto_core_keccak1600_permute_24(state);
+        crypto_core_keccak1600_permute_24(&state);
         offset = 0;
     }
 
     if (offset == rate - 1) {
         pad = (unsigned char) (domain ^ 0x80);
-        crypto_core_keccak1600_xor_bytes(state, &pad, offset, 1);
+        crypto_core_keccak1600_xor_bytes(&state, &pad, offset, 1);
     } else {
-        crypto_core_keccak1600_xor_bytes(state, &domain, offset, 1);
+        crypto_core_keccak1600_xor_bytes(&state, &domain, offset, 1);
         pad = 0x80;
-        crypto_core_keccak1600_xor_bytes(state, &pad, rate - 1, 1);
+        crypto_core_keccak1600_xor_bytes(&state, &pad, rate - 1, 1);
     }
 
-    crypto_core_keccak1600_permute_24(state);
+    crypto_core_keccak1600_permute_24(&state);
     offset = 0;
 
     while (extracted < outlen) {
         if (offset == rate) {
-            crypto_core_keccak1600_permute_24(state);
+            crypto_core_keccak1600_permute_24(&state);
             offset = 0;
         }
         chunk_size = rate - offset;
         if (chunk_size > outlen - extracted) {
             chunk_size = outlen - extracted;
         }
-        crypto_core_keccak1600_extract_bytes(state, &out[extracted], offset, chunk_size);
+        crypto_core_keccak1600_extract_bytes(&state, &out[extracted], offset, chunk_size);
         offset += chunk_size;
         extracted += chunk_size;
     }
@@ -207,6 +207,61 @@ main(void)
 
         if (memcmp(out_manual, out_impl, sizeof out_manual) != 0) {
             printf("Domain MSB padding test failed\n");
+            return 1;
+        }
+    }
+
+    /* Test zero-length update and squeeze are no-ops */
+    crypto_xof_shake256_init(&state);
+    crypto_xof_shake256_update(&state, msg_abc, 1);
+    crypto_xof_shake256_update(&state, msg_abc, 0);
+    crypto_xof_shake256_update(&state, msg_abc + 1, 2);
+    crypto_xof_shake256_squeeze(&state, out, 0);
+    crypto_xof_shake256_squeeze(&state, out, 32);
+    if (memcmp(out, out_abc_32, 32) != 0) {
+        printf("Zero-length update/squeeze test failed\n");
+        return 1;
+    }
+
+    /* Test rate-sized input and long output (padding after full block) */
+    {
+        unsigned char out_manual[crypto_xof_shake256_BLOCKBYTES + 7];
+        unsigned char out_impl[crypto_xof_shake256_BLOCKBYTES + 7];
+
+        shake256_manual_with_domain(out_manual, sizeof out_manual, msg_rate_block,
+                                    sizeof msg_rate_block, crypto_xof_shake256_domain_standard());
+
+        crypto_xof_shake256_init(&state);
+        crypto_xof_shake256_update(&state, msg_rate_block, sizeof msg_rate_block);
+        crypto_xof_shake256_squeeze(&state, out_impl, sizeof out_impl);
+
+        if (memcmp(out_manual, out_impl, sizeof out_manual) != 0) {
+            printf("Rate block long output test failed\n");
+            return 1;
+        }
+    }
+
+    /* Test chunked update across block boundary */
+    {
+        unsigned char msg_rate_plus1[crypto_xof_shake256_BLOCKBYTES + 1];
+        unsigned char out_manual[32];
+        unsigned char out_impl[32];
+
+        for (i = 0; i < sizeof msg_rate_plus1; i++) {
+            msg_rate_plus1[i] = (unsigned char) i;
+        }
+
+        shake256_manual_with_domain(out_manual, sizeof out_manual, msg_rate_plus1,
+                                    sizeof msg_rate_plus1, crypto_xof_shake256_domain_standard());
+
+        crypto_xof_shake256_init(&state);
+        crypto_xof_shake256_update(&state, msg_rate_plus1, 1);
+        crypto_xof_shake256_update(&state, msg_rate_plus1 + 1, crypto_xof_shake256_BLOCKBYTES - 1);
+        crypto_xof_shake256_update(&state, msg_rate_plus1 + crypto_xof_shake256_BLOCKBYTES, 1);
+        crypto_xof_shake256_squeeze(&state, out_impl, sizeof out_impl);
+
+        if (memcmp(out_manual, out_impl, sizeof out_manual) != 0) {
+            printf("Chunked update boundary test failed\n");
             return 1;
         }
     }
